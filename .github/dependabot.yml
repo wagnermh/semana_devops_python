@@ -28,7 +28,7 @@ updates:
       interval: "daily"
     target-branch: "dev"
 
-      # Monitora DEPENDÊNCIAS DO DOCKER na branch qas
+  # Monitora DEPENDÊNCIAS DO DOCKER na branch qas
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -42,7 +42,7 @@ updates:
       interval: "daily"
     target-branch: "qas"
 
-      # Monitora Docker em branches release/*
+  # Monitora Docker em branches release/*
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -55,3 +55,17 @@ updates:
     schedule:
       interval: "daily"
     target-branch: "release/*"
+
+  # Monitora DEPENDÊNCIAS DO DOCKER na branch fix
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "fix/*"
+
+  # Monitora DEPENDÊNCIAS DO PYTHON na branch fix
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "fix/*"
