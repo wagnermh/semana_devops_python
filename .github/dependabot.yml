@@ -1,0 +1,57 @@
+version: 2
+updates:
+  # Monitora DEPENDÊNCIAS DO DOCKER na branch main
+  - package-ecosystem: "docker"
+    directory: "/"                    # Local do Dockerfile (raiz)
+    schedule:
+      interval: "daily"              # Frequência: daily, weekly, monthly
+    target-branch: "main"            # Branch alvo
+
+  # Monitora DEPENDÊNCIAS DO PYTHON na branch main
+  - package-ecosystem: "pip"         # "pip" cobre requirements.txt, pyproject.toml, Pipfile[citation:1]
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "main"
+
+  # Monitora DEPENDÊNCIAS DO DOCKER na branch dev
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "dev"
+
+  # Monitora DEPENDÊNCIAS DO PYTHON na branch dev
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "dev"
+
+      # Monitora DEPENDÊNCIAS DO DOCKER na branch qas
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "qas"
+
+  # Monitora DEPENDÊNCIAS DO PYTHON na branch qas
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "qas"
+
+      # Monitora Docker em branches release/*
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "release/*"       # Curinga: pega release/v1, release/v2, etc.
+
+  # Monitora Python em branches release/*
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "release/*"
