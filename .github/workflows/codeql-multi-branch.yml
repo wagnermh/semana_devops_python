@@ -1,0 +1,41 @@
+name: "CodeQL Advanced - Multi Branch Scan"
+
+# Define permissões padrão para TODO o workflow
+permissions:
+  contents: read          # Mínimo necessário para ler o código
+  security-events: write  # Necessário para enviar resultados
+
+# Desabilita permissões extras automaticamente
+# O GitHub não concede nada além do explicitamente definido
+
+on:
+  push:
+    branches: [ main, dev, qas, bug/*, fix/*, release/* ]
+  pull_request:
+    branches: [ main, qas, dev ]
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    # Este job herda as permissões do workflow
+    # Não precisa redefinir a menos que queira algo diferente
+    
+    strategy:
+      matrix:
+        language: [python, dockerfile]
+    
+    steps:
+    - uses: actions/checkout@v4
+    - uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+    - uses: github/codeql-action/autobuild@v3
+    - uses: github/codeql-action/analyze@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
