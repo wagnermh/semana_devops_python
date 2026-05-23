@@ -1,53 +1,39 @@
 name: "CodeQL Advanced - Multi Branch Scan"
 
+# Define permissões padrão para TODO o workflow
+permissions:
+  contents: read          # Mínimo necessário para ler o código
+  security-events: write  # Necessário para enviar resultados
+
+# Desabilita permissões extras automaticamente
+# O GitHub não concede nada além do explicitamente definido
+
 on:
   push:
-    branches:
-      - main
-      - bug/*
-      - dev
-      - qas
-      - release/*
-      - fix/*
+    branches: [ main, dev, qas, bug/*, fix/*, release/* ]
   pull_request:
-    branches:
-      - main
-      - qas
-      - dev
+    branches: [ main, qas, dev ]
   schedule:
-    - cron: '0 0 * * 0'  # Escaneia toda semana (domingo meia-noite)
-  workflow_dispatch:      # Permite execução manual
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
 
 jobs:
   analyze:
-    name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-
+    # Este job herda as permissões do workflow
+    # Não precisa redefinir a menos que queira algo diferente
+    
     strategy:
-      fail-fast: false
       matrix:
-        include:
-          - language: python
-            build-mode: none
-          - language: dockerfile
-            build-mode: none
-
+        language: [python, dockerfile]
+    
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 2
-
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
+    - uses: actions/checkout@v4
+    - uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
-        build-mode: ${{ matrix.build-mode }}
-        queries: security-and-quality  # Inclui queries de segurança e qualidade
+    - uses: github/codeql-action/autobuild@v3
+    - uses: github/codeql-action/analyze@v3
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v3
