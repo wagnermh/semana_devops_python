@@ -1,0 +1,170 @@
+name: Security Dashboard Generator
+
+on:
+  schedule:
+    - cron: '0 8 * * 1'  # Toda segunda-feira às 8h
+  workflow_dispatch:      # Execução manual
+
+permissions:
+  contents: write
+  security-events: read
+
+jobs:
+  generate-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Generate dashboard
+        run: |
+          cat > generate_dashboard.py << 'EOF'
+          import json
+          import subprocess
+          from datetime import datetime
+          
+          # Configuração
+          REPO = "${{ github.repository }}"
+          GITHUB_TOKEN = "${{ secrets.GITHUB_TOKEN }}"
+          
+          # Busca todas as branches
+          def get_branches():
+              cmd = ["gh", "api", f"repos/{REPO}/branches", "--paginate"]
+              result = subprocess.run(cmd, capture_output=True, text=True)
+              branches = json.loads(result.stdout)
+              return [b['name'] for b in branches]
+          
+          # Busca CodeQL alerts por branch
+          def get_codeql_alerts(branch):
+              cmd = ["gh", "api", f"repos/{REPO}/code-scanning/alerts?branch={branch}", "--paginate"]
+              result = subprocess.run(cmd, capture_output=True, text=True)
+              if result.returncode != 0 or not result.stdout:
+                  return []
+              try:
+                  return json.loads(result.stdout)
+              except:
+                  return []
+          
+          # Busca Dependabot alerts (apenas branch padrão)
+          def get_dependabot_alerts():
+              cmd = ["gh", "api", f"repos/{REPO}/dependabot/alerts", "--paginate"]
+              result = subprocess.run(cmd, capture_output=True, text=True)
+              if result.returncode != 0 or not result.stdout:
+                  return []
+              try:
+                  return json.loads(result.stdout)
+              except:
+                  return []
+          
+          # Gera relatório em Markdown
+          def generate_markdown(branches_data, dependabot_alerts):
+              md = f"""# 🔒 Security Dashboard
+              
+  **Gerado em:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  
+  ## 📊 Resumo Geral
+  
+  | Métrica | Valor |
+  |---------|-------|
+  | Total de branches analisadas | {len(branches_data)} |
+  | Total de vulnerabilidades CodeQL | {sum(b['total'] for b in branches_data)} |
+  | Vulnerabilidades críticas | {sum(b['critical'] for b in branches_data)} |
+  | Vulnerabilidades altas | {sum(b['high'] for b in branches_data)} |
+  
+  ## 📋 Detalhamento por Branch
+  
+  | Branch | Status | Total | 🔴 Critical | 🟠 High | 🟡 Medium | 🔵 Low | Último Scan |
+  |--------|--------|-------|-------------|---------|-----------|--------|-------------|
+  """
+              
+              for branch in branches_data:
+                  status_icon = "✅" if branch['last_scan'] else "❌"
+                  md += f"| {branch['name']} | {status_icon} | {branch['total']} | {branch['critical']} | {branch['high']} | {branch['medium']} | {branch['low']} | {branch['last_scan'] or 'Nunca'} |\n"
+              
+              # Adiciona seção de Dependabot (apenas branch padrão)
+              if dependabot_alerts:
+                  critical_deps = sum(1 for a in dependabot_alerts if a.get('security_advisory', {}).get('severity') == 'critical')
+                  high_deps = sum(1 for a in dependabot_alerts if a.get('security_advisory', {}).get('severity') == 'high')
+                  
+                  md += f"""
+  ## 📦 Dependabot Alerts (Branch Padrão)
+  
+  | Severidade | Quantidade |
+  |-----------|------------|
+  | 🔴 Critical | {critical_deps} |
+  | 🟠 High | {high_deps} |
+  | 🟡 Medium | {len(dependabot_alerts) - critical_deps - high_deps} |
+  
+  **Total de vulnerabilidades em dependências:** {len(dependabot_alerts)}
+  """
+              
+              md += """
+  ## 🎯 Recomendações
+  
+  1. **Corrija primeiro:** Branches com vulnerabilidades críticas
+  2. **Mantenha atualizado:** Execute `workflow_dispatch` para branches sem scan recente
+  3. **Monitore:** Branches ativas devem ter scan semanal
+  
+  ### Links Úteis
+  - [CodeQL Alerts](https://github.com/${{ github.repository }}/security/code-scanning)
+  - [Dependabot Alerts](https://github.com/${{ github.repository }}/security/dependabot)
+  """
+              return md
+          
+          # Execução principal
+          print("📊 Gerando dashboard de segurança...")
+          
+          branches = get_branches()
+          branches_data = []
+          
+          for branch in branches:
+              print(f"  Analisando branch: {branch}")
+              alerts = get_codeql_alerts(branch)
+              
+              # Conta por severidade
+              critical = sum(1 for a in alerts if a.get('rule', {}).get('severity') == 'error')
+              high = sum(1 for a in alerts if a.get('rule', {}).get('severity') == 'warning')
+              medium = sum(1 for a in alerts if 'medium' in a.get('rule', {}).get('severity', '').lower())
+              low = sum(1 for a in alerts if 'note' in a.get('rule', {}).get('severity', '').lower())
+              
+              # Verifica último scan (via Actions API)
+              last_scan = "Desconhecido"
+              
+              branches_data.append({
+                  'name': branch,
+                  'total': len(alerts),
+                  'critical': critical,
+                  'high': high,
+                  'medium': medium,
+                  'low': low,
+                  'last_scan': last_scan
+              })
+          
+          dependabot_alerts = get_dependabot_alerts()
+          markdown = generate_markdown(branches_data, dependabot_alerts)
+          
+          with open('SECURITY_DASHBOARD.md', 'w') as f:
+              f.write(markdown)
+          
+          print(f"✅ Dashboard gerado com {len(branches_data)} branches analisadas")
+          EOF
+          
+          python generate_dashboard.py
+      
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          publish_branch: gh-pages
+          keep_files: false
+          destination_dir: .
+          commit_message: "📊 Atualiza dashboard de segurança"
+      
+      - name: Update README badge
+        run: |
+          echo "📊 Dashboard disponível em: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/SECURITY_DASHBOARD.md"
